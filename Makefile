@@ -28,7 +28,7 @@ obj/gl.o: dep/glad/src/gl.c
 	gcc $< -o $@ -Idep/glad/include -c
 
 obj/sim.o: src/sim.c src/sim.h 
-	gcc $< -o $@ -Idep/cglm/include -c
+	gcc $< -o $@ -Idep/cglm/include -c -O3
 
 obj/vid.o: src/vid.c src/balls.h src/draw.h 
 	gcc $< -o $@ -Idep/cglm/include -Idep/glad/include -c
