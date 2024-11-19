@@ -11,6 +11,8 @@ If no name is provided will create `bin/csv`.
 
 `bin/csv` outputs a `csv` of 10 seconds of simulation.
 If a filename is not provided `bin/csv` outputs to standard output. 
+If you use `-e` flag output only first and last frame of simulation;
+it will also print the time the simulation to standard error. 
 
 ## `bin/vid`
 
