@@ -2,13 +2,8 @@
 #include <math.h>
 #include <string.h>
 
-struct node {
-    struct node *next;
-    size_t index;
-};
-
-static struct node nodes[N_BALLS];
-static struct node *tiles[16][16][16];
+static uint16_t nodes[N_BALLS];
+static uint16_t tiles[16][16][16];
 
 static int min(int a, int b) {
     return a < b ? a : b;
@@ -32,14 +27,13 @@ void init_sim(void) {
 }
 
 void update_sim(void) {
-    memset(tiles, 0, sizeof(tiles));
+    memset(tiles, 0xFF, sizeof(tiles));
     for (int i = 0; i < N_BALLS; i++) {
         int x = balls_pos[i][0];
         int y = balls_pos[i][1];
         int z = balls_pos[i][2];
-        nodes[i].next = tiles[x][y][z];
-        nodes[i].index = i;
-        tiles[x][y][z] = &nodes[i];
+        nodes[i] = tiles[x][y][z];
+        tiles[x][y][z] = i;
     }
     for (int i = 0; i < N_BALLS; i++) {
         glm_vec3_muladds(balls_vel[i], DT, balls_pos[i]); 
@@ -66,8 +60,8 @@ void update_sim(void) {
         for (int x = x0; x <= x1; x++) {
             for (int y = y0; y <= y1; y++) {
                 for (int z = z0; z <= z1; z++) {
-                    for (struct node *n = tiles[x][y][z]; n; n = n->next) {
-                        int j = n->index;
+                    int j = tiles[x][y][z]; 
+                    for (; j != UINT16_MAX; j = nodes[j]) {
                         if (j >= i)
                             continue;
                         vec3 normal;

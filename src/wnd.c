@@ -23,17 +23,12 @@ int main(void) {
         draw(w, h);
         SDL_GL_SwapWindow(wnd);
         Uint64 t1 = SDL_GetPerformanceCounter();
-        printf("%f\n", acc / (float) freq);
         acc += t1 - t0;
         t0 = t1;
-        /*
         while (acc >= frame) {
             acc -= frame;
             update_sim();
-            update_sim();
         }
-        */
-        update_sim();
     }
     return EXIT_SUCCESS;
 }
