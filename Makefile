@@ -1,6 +1,6 @@
-CSV_OBJ=obj/balls.o obj/csv.o obj/sim.o
-VID_OBJ=obj/balls.o obj/draw.o obj/gl.o obj/vid.o 
-WND_OBJ=obj/balls.o obj/draw.o obj/gl.o obj/sim.o obj/wnd.o 
+CSV_OBJ=obj/balls.o obj/csv.o obj/misc.o obj/sim.o
+VID_OBJ=obj/balls.o obj/draw.o obj/gl.o obj/misc.o obj/vid.o 
+WND_OBJ=obj/balls.o obj/draw.o obj/gl.o obj/misc.o obj/sim.o obj/wnd.o 
 
 bin/csv: bin obj $(CSV_OBJ) 
 	gcc $(CSV_OBJ) -o $@ -lm
@@ -22,7 +22,7 @@ obj/csv.o: src/csv.c src/balls.h src/sim.h
 	gcc $< -o $@ -Idep/cglm/include -c
 
 obj/draw.o: src/draw.c src/draw.h src/balls.h 
-	gcc $< -o $@ -Idep/cglm/include -Idep/glad/include -c
+	gcc $< -o $@ -Idep/cglm/include -Idep/glad/include -c -O3
 
 obj/gl.o: dep/glad/src/gl.c 
 	gcc $< -o $@ -Idep/glad/include -c
@@ -30,11 +30,14 @@ obj/gl.o: dep/glad/src/gl.c
 obj/sim.o: src/sim.c src/sim.h 
 	gcc $< -o $@ -Idep/cglm/include -c -O3
 
-obj/vid.o: src/vid.c src/balls.h src/draw.h 
+obj/vid.o: src/vid.c src/balls.h src/draw.h src/misc.h
 	gcc $< -o $@ -Idep/cglm/include -Idep/glad/include -c
 
 obj/wnd.o: src/wnd.c src/draw.h 
 	gcc $< -o $@ -Idep/cglm/include -Idep/glad/include -c
+
+obj/misc.o: src/misc.c src/misc.h
+	gcc $< -o $@ -c
 
 obj:
 	mkdir obj

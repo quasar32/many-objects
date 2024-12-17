@@ -1,6 +1,6 @@
 # Many Objects 
 
-Unoptimized simulation of many spheres on CPU.
+Optimized simulation of many spheres on CPU.
 
 ## Build
 
@@ -9,7 +9,7 @@ If no name is provided will create `bin/csv`.
 
 ## `bin/csv`
 
-`bin/csv` outputs a `csv` of 10 seconds of simulation.
+`bin/csv` outputs a `csv` of 20 seconds of simulation.
 If a filename is not provided `bin/csv` outputs to standard output. 
 If you use `-e` flag output only first and last frame of simulation;
 it will also print the time the simulation to standard error. 

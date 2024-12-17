@@ -9,4 +9,5 @@
 #define DT (1.0f / FPS)
 
 extern vec3 balls_pos[N_BALLS];
+extern vec3 balls_pos0[N_BALLS];
 extern vec3 balls_vel[N_BALLS];

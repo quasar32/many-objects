@@ -1,179 +1,66 @@
 #include <stdio.h>
+#define __USE_GNU
 #include <stdlib.h>
 #include <math.h>
 #include <glad/gl.h>
 #include "draw.h"
-#include "balls.h"
+#include "sim.h"
+#include "misc.h"
+
+SDL_Window *wnd;
 
 #define N_STACKS  8
 #define N_SECTORS 16
 #define N_INDICES ((N_STACKS + 1) * N_SECTORS * 6)
 
-struct instance {
-    mat4 model;
-    mat3 invt;
-};
-
-SDL_Window *wnd;
-
 static GLuint vao;
-static GLuint bos[3];
+static GLuint vbo;
+static GLuint tex;
 static GLuint prog;
-static GLint world_loc;
+static GLint proj_ul;
+static vec3 colors[N_BALLS];
+
 static vec3 vertices[N_STACKS + 1][N_SECTORS];
 static GLushort indices[N_STACKS][N_SECTORS][6];
-static struct instance instances[N_BALLS];
 
-static const char vs_src[] = 
-    "#version 330 core\n"
-    "layout(location = 0) in vec3 pos;"
-    "layout(location = 1) in mat4 model;"
-    "layout(location = 5) in mat3 invt;"
-    "out vec3 frag_pos;"
-    "out vec3 vs_norm;"
-    "uniform mat4 world;"
-    "void main() {"
-        "vec4 model_pos = model * vec4(pos, 1.0f);"
-        "gl_Position = world * model_pos;"
-	"frag_pos = vec3(model_pos);"
-	"vs_norm = invt * pos;"
-    "}";
+struct vertex {
+    vec3 xyz;
+    vec2 uv;
+    vec3 rgb;
+};
 
-static const char fs_src[] = 
-    "#version 330 core\n"
-    "out vec4 color;"
-    "in vec3 norm;"
-    "in vec3 frag_pos;"
-    "in vec3 vs_norm;"
-    "void main() {"
-        "float ambient_strength = 0.1f;"
-        "vec3 light_color = vec3(1.0f, 1.0f, 1.0f);"
-        "vec3 ambient = ambient_strength * light_color;"
+static struct vertex rect[6] = {
+    {{0.5f, 0.5f}, {1.0f, 1.0f}}, 
+    {{-0.5f, 0.5f}, {0.0f, 1.0f}},
+    {{-0.5f, -0.5f}, {0.0f, 0.0f}},
+    {{0.5f, 0.5f}, {1.0f, 1.0f}}, 
+    {{-0.5f, -0.5f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {1.0f, 0.0f}}
+};
 
-        "vec3 norm = normalize(vs_norm);"
-        "vec3 light_pos = vec3(-8.0f, -8.0f, -48.0f);"
-        "vec3 light_dir = normalize(light_pos - frag_pos);"
-        "float diff = max(dot(norm, light_dir), 0.0F);"
-        "vec3 diffuse = diff * light_color;"
-
-        "float specular_strength = 0.5f;"
-        "vec3 view_pos = vec3(-8.0f, -8.0f, -48.0f);"
-        "vec3 view_dir = normalize(view_pos - frag_pos);"
-        "vec3 reflect_dir = reflect(-light_dir, norm);"
-        "float spec = pow(max(dot(view_dir, reflect_dir), 0.0F), 32.0F);"
-        "vec3 specular = specular_strength * spec * light_color;"
-
-        "vec3 obj_color = vec3(1.0f, 0.0f, 0.0f);"
-        "vec3 rgb = (ambient + diffuse) * obj_color;"
-        "color = vec4(rgb, 1.0F);"
-    "}";
-
-void die(const char *fmt, ...) {
-    va_list ap;	
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    exit(EXIT_FAILURE);
-}
-
-static GLuint gen_shader(GLenum type, const char *src) {
+static GLuint gen_shader(GLenum type, const char *path) {
     GLuint shader = glCreateShader(type);
+    FILE *fp = fopen(path, "r");
+    if (!fp) 
+        die("could not open %s\n", path);
+    char data[1024];
+    size_t sz = fread(data, 1, sizeof(data), fp);
+    if (sz == sizeof(data))
+        die("%s too big\n", path);
+    if (ferror(fp))
+        die("error reading %s\n");
+    fclose(fp);
+    data[sz] = '\0';
+    const char *src = data;
     glShaderSource(shader, 1, &src, NULL);
     glCompileShader(shader);
     int success;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success) {
-        char log[1024];
-        glGetShaderInfoLog(shader, sizeof(log), NULL, log);
-        die("shader: %s\n", log);
+        glGetShaderInfoLog(shader, sizeof(data), NULL, data);
+        die("%s: %s\n", path, data);
     }
     return shader;
-}
-
-static void init_prog(void) {
-    prog = glCreateProgram();
-    GLuint vs = gen_shader(GL_VERTEX_SHADER, vs_src);
-    glAttachShader(prog, vs);
-    GLuint fs = gen_shader(GL_FRAGMENT_SHADER, fs_src);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
-    int success;
-    glGetProgramiv(prog, GL_LINK_STATUS, &success);
-    if (!success) {
-        char log[1024];
-        glGetProgramInfoLog(prog, sizeof(log), NULL, log);
-        die("program: %s\n", log);
-    }
-    glDetachShader(prog, vs);
-    glDeleteShader(vs);
-    glDetachShader(prog, fs);
-    glDeleteShader(fs);
-    world_loc = glGetUniformLocation(prog, "world");
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-}
-
-static void init_sphere(void) {
-    float phi = 0.0f;
-    for (int i = 0; i <= N_STACKS; i++) {
-        float theta = 0.0f;
-        float r = sinf(phi);
-        float z = cosf(phi);
-        for (int j = 0; j < N_SECTORS; j++) {
-            vertices[i][j][0] = r * cosf(theta); 
-            vertices[i][j][1] = r * sinf(theta);
-            vertices[i][j][2] = z;
-            theta += 2.0f * GLM_PIf / (N_SECTORS - 1);
-        }
-        phi += GLM_PIf / N_STACKS;
-    }
-    int r0 = 0;
-    int r1 = 0;
-    for (int i = 0; i < N_STACKS; i++) {
-        r1 += N_SECTORS;
-        for (int j = 0; j < N_SECTORS; j++) {
-            int j2 = (j + 1) % N_SECTORS;
-            indices[i][j][0] = r0 + j;
-            indices[i][j][1] = r0 + j2;
-            indices[i][j][2] = r1 + j;
-            indices[i][j][3] = r1 + j2;
-            indices[i][j][4] = r1 + j;
-            indices[i][j][5] = r0 + j2;
-        }
-        r0 = r1;
-    }
-}
-
-static void buffer_instances(void) {
-    glBindBuffer(GL_ARRAY_BUFFER, bos[2]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(instances), instances);
-    for (int i = 0; i < 4; i++) 
-        glVertexAttribPointer(i + 1, 4, GL_FLOAT, GL_FALSE, 
-                sizeof(*instances), &((struct instance *) 0)->model[i]);
-    for (int i = 0; i < 3; i++) 
-        glVertexAttribPointer(i + 5, 3, GL_FLOAT, GL_FALSE, 
-                sizeof(*instances), &((struct instance *) 0)->invt[i]);
-    for (int i = 1; i < 8; i++) 
-        glVertexAttribDivisor(i, 1);
-}
-
-static void init_buffers(void) {
-    glCreateVertexArrays(1, &vao);
-    glCreateBuffers(3, bos);
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, bos[0]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), 
-            vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), NULL);
-    for (int i = 0; i < 8; i++)
-        glEnableVertexAttribArray(i);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bos[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), 
-            indices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, bos[2]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(instances), 
-            NULL, GL_DYNAMIC_DRAW);
-    glBindVertexArray(0);
 }
 
 static void sdl2_die(const char *func) {
@@ -206,33 +93,205 @@ static void init_sdl(int width, int height) {
         sdl2_die("SDL_GL_GetProcAddress");
 }
 
-void init_draw(int width, int height) {
-    init_sdl(width, height);
-    init_sphere();
-    init_buffers();
-    init_prog();
+static GLuint create_prog(const char *vert_path, const char *frag_path) {
+    GLuint prog = glCreateProgram();
+    GLuint vs = gen_shader(GL_VERTEX_SHADER, vert_path);
+    glAttachShader(prog, vs);
+    GLuint fs = gen_shader(GL_FRAGMENT_SHADER, frag_path);
+    glAttachShader(prog, fs);
+    glLinkProgram(prog);
+    int success;
+    glGetProgramiv(prog, GL_LINK_STATUS, &success);
+    if (!success) {
+        char log[1024];
+        glGetProgramInfoLog(prog, sizeof(log), NULL, log);
+        die("program: %s\n", log);
+    }
+    glDetachShader(prog, vs);
+    glDeleteShader(vs);
+    glDetachShader(prog, fs);
+    glDeleteShader(fs);
+    return prog;
+}
+
+
+static vec3 vertices[N_STACKS + 1][N_SECTORS];
+static GLushort indices[N_STACKS][N_SECTORS][6];
+
+static void create_sphere_texture(void) {
+    /* generate sphere geometry*/
+    float phi = GLM_PIf;
+    for (int i = 0; i <= N_STACKS; i++) {
+        float theta = 0.0f;
+        float r = sinf(phi);
+        float z = cosf(phi);
+        for (int j = 0; j < N_SECTORS; j++) {
+            vertices[i][j][0] = r * cosf(theta); 
+            vertices[i][j][1] = r * sinf(theta);
+            vertices[i][j][2] = z;
+            theta += 2.0f * GLM_PIf / (N_SECTORS - 1);
+        }
+        phi += GLM_PIf / (N_STACKS * 2);
+    }
+    int r0 = 0;
+    int r1 = 0;
+    for (int i = 0; i < N_STACKS; i++) {
+        r1 += N_SECTORS;
+        for (int j = 0; j < N_SECTORS; j++) {
+            int j2 = (j + 1) % N_SECTORS;
+            indices[i][j][0] = r0 + j;
+            indices[i][j][1] = r0 + j2;
+            indices[i][j][2] = r1 + j;
+            indices[i][j][3] = r1 + j2;
+            indices[i][j][4] = r1 + j;
+            indices[i][j][5] = r0 + j2;
+        }
+        r0 = r1;
+    }
+
+    GLuint vao, bos[2];
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(2, bos);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, bos[0]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), 
+                 vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), NULL);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bos[1]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), 
+                 indices, GL_STATIC_DRAW);
+
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, 64, 64, 0,
+                 GL_RG, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    GLuint fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, 
+                           GL_TEXTURE_2D, tex, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        die("glCheckFramebufferStatus: %u\n", glGetError());
+
+    GLuint prog = create_prog("res/sphere.vert", "res/sphere.frag");
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glViewport(0, 0, 64, 64);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(prog);
+    mat4 world;
+    glm_perspective_default(1, world);
+    GLint world_ul = glGetUniformLocation(prog, "world");
+    glUniformMatrix4fv(world_ul, 1, GL_FALSE, (float *) world);
+    glBindVertexArray(vao);
+    glDrawElements(GL_TRIANGLES, N_INDICES, GL_UNSIGNED_SHORT, NULL);
+    glBindVertexArray(0);
+    glDeleteProgram(prog);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+    glDeleteBuffers(2, bos);
+    glDeleteVertexArrays(1, &vao);
+
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+static void init_bufs(void) {
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    for (int i = 0; i < N_BALLS; i++) {
+        colors[i][0] = drand48();
+        colors[i][1] = drand48();
+        colors[i][2] = drand48();
+    }
+}
+
+void init_draw(int w, int h) {
+    init_sdl(w, h);
+    prog = create_prog("res/vert.glsl", "res/frag.glsl");
+    proj_ul = glGetUniformLocation(prog, "proj");
+    init_bufs();
+    create_sphere_texture();
+}
+
+static int pos_cmp(const void *ip, const void *jp, void *arg) {
+    int i = *(int *) ip;
+    int j = *(int *) jp;
+    vec4 *v = arg;
+    float a = v[i][2];
+    float b = v[j][2];
+    return (a > b) - (a < b);
 }
 
 void draw(int w, int h) {
-    glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUseProgram(prog);
-    mat4 proj, view, world;
-    glm_perspective(GLM_PI_4f, w / (float) h, 0.1f, 100.0f, proj);
-    glm_translate_make(view, (vec3) {-8.0f, -8.0f, -48.0f});
-    glm_rotate_y(view, GLM_PIf / 16.0f, view);
-    glm_mul(proj, view, world);
-    glUniformMatrix4fv(world_loc, 1, GL_FALSE, (float *) world);
-    for (int i = 0; i < N_BALLS; i++) {
-        glm_mat4_identity(instances[i].model);
-        glm_translate(instances[i].model, balls_pos[i]);
-        glm_scale_uni(instances[i].model, RADIUS);
-        mat4 tmp;
-        glm_mat4_inv(instances[i].model, tmp);
-        glm_mat4_pick3t(instances[i].model, instances[i].invt);
+    mat4 view;
+    vec3 center;
+    glm_vec3_add(eye, front, center);
+    glm_lookat(eye, center, GLM_YUP, view);
+    int n = 6 * N_BALLS;
+    vec4 *poss = xmalloc(n * sizeof(*poss));
+    for (int i = 0, k = 0; i < N_BALLS; i++) {
+        mat4 mv;
+        glm_translate_to(view, balls_pos[i], mv);
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++)
+                mv[i][j] = (i == j);
+        }
+        glm_scale_uni(mv, DIAMETER);
+        for (int j = 0; j < 6; j++, k++) {
+            glm_vec4(rect[j].xyz, 1.0f, poss[k]);
+            glm_mat4_mulv(mv, poss[k], poss[k]);
+        }
     }
+    struct vertex *vertices = xmalloc(n * sizeof(*vertices));
+    int *indices = xmalloc(N_BALLS * sizeof(*indices));
+    for (int i = 0; i < N_BALLS; i++)
+        indices[i] = i * 6;
+    qsort_r(indices, N_BALLS, sizeof(int), pos_cmp, poss);
+    for (int i = 0, k = 0; i < N_BALLS; i++) {
+        for (int j = 0; j < 6; j++, k++) {
+            int iv = indices[i];
+            glm_vec3_copy(poss[iv + j], vertices[k].xyz);
+            glm_vec2_copy(rect[j].uv, vertices[k].uv);
+            glm_vec3_copy(colors[iv / 6], vertices[k].rgb);
+        }
+    }
+    free(indices);
+    indices = NULL;
+    free(poss);
+    poss = NULL;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glUseProgram(prog);
+    mat4 proj;
+    glm_perspective_default(w / (float) h, proj);
+    glUniformMatrix4fv(proj_ul, 1, GL_FALSE, (float *) proj);
     glBindVertexArray(vao);
-    buffer_instances();
-    glDrawElementsInstanced(GL_TRIANGLES, N_INDICES, 
-            GL_UNSIGNED_SHORT, NULL, N_BALLS);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, n * sizeof(*vertices), 
+                 vertices, GL_DYNAMIC_DRAW);
+    free(vertices);
+    vertices = NULL;
+#define VERTEX_ATTRIB(index, size, type, member) \
+    glVertexAttribPointer(index, size, GL_FLOAT, GL_FALSE, \
+                          sizeof(type), &((type *) 0)->member)
+    VERTEX_ATTRIB(0, 3, struct vertex, xyz);
+    VERTEX_ATTRIB(1, 2, struct vertex, uv);
+    VERTEX_ATTRIB(2, 3, struct vertex, rgb);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glDrawArrays(GL_TRIANGLES, 0, n);
 }

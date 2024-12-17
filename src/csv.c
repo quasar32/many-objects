@@ -4,7 +4,7 @@
 #include <time.h>
 #include "sim.h"
 
-#define N_FRAMES (10 * FPS)
+#define N_FRAMES (20 * FPS)
 
 static int ends_only;
 
