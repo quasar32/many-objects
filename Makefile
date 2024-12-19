@@ -27,7 +27,7 @@ obj/draw.o: src/draw.c src/draw.h src/balls.h
 obj/gl.o: dep/glad/src/gl.c 
 	gcc $< -o $@ -Idep/glad/include -c
 
-obj/sim.o: src/sim.c src/sim.h 
+obj/sim.o: src/sim.c src/sim.h src/balls.h
 	gcc $< -o $@ -Idep/cglm/include -c -O3
 
 obj/vid.o: src/vid.c src/balls.h src/draw.h src/misc.h
