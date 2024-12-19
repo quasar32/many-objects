@@ -111,8 +111,10 @@ static void render(void) {
     if (ret < 0)
         die("av_frame_get_buffer: %s\n", av_err2str(ret));
     pts = n = 0;
+    vec3 eye = {0.0f, 0.0f, 32.0f};
+    vec3 front = {0.0f, 0.0f, -1.0f};
     while (next_frame()) {
-        draw(WIDTH, HEIGHT);
+        draw(WIDTH, HEIGHT, eye, front);
         glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGB, 
                      GL_UNSIGNED_BYTE, pixels); 
         ret = av_frame_make_writable(frame);
