@@ -99,31 +99,32 @@ static void init_prog(void) {
 static void init_tex(void) {
     double c = cos(GLM_PI / 8.0);
     double s = sin(GLM_PI / 8.0);
-    uint16_t pixels[32][32];
-    for (int px = 0; px < 32; px++) {
-        double x0 = px / 15.5 - 1.0;
-        for (int py = 0; py < 32; py++) {
-            double y0 = py / 15.5 - 1.0;
+    int tex_size = 1024;
+    uint16_t *pixels = xmalloc(tex_size * tex_size * 2);
+    for (int px = 0; px < tex_size; px++) {
+        double x0 = px / (tex_size / 2 - 0.5) - 1.0;
+        for (int py = 0; py < tex_size; py++) {
+            double y0 = py / (tex_size / 2 - 0.5) - 1.0;
             double z0 = sqrt(1 - x0 * x0 - y0 * y0);
             if (isnan(z0)) {
-                pixels[py][px] = 0;
-            } else { 
+                pixels[py * tex_size + px] = 0;
+            } else {
                 double z1 = y0 * s + z0 * c;
                 double z2 = x0 * s + z1 * c; 
                 int intensity = fmax(z2, 0.0) * 255;
-                pixels[py][px] = intensity + 256 * 255;
-            } 
+                pixels[py * tex_size + px] = intensity + 256 * 255;
+            }
         }
     }
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, 32, 32, 0,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, tex_size, tex_size, 0,
                  GL_RG, GL_UNSIGNED_BYTE, pixels);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenerateMipmap(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
+    free(pixels);
 }
 
 static void init_bufs(void) {

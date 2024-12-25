@@ -7,7 +7,7 @@
 #include "draw.h"
 #include "misc.h"
 
-#define WIDTH 640 
+#define WIDTH 640
 #define HEIGHT 480 
 
 static uint8_t pixels[WIDTH * HEIGHT * 3];
@@ -51,10 +51,9 @@ static void render(void) {
     AVPacket *pkt;
     AVFrame *frame;
     int pts;
-    int n;
 
     sws = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_RGB24,
-        WIDTH, HEIGHT, AV_PIX_FMT_YUV420P, SWS_FAST_BILINEAR,
+        WIDTH, HEIGHT, AV_PIX_FMT_NV21, SWS_FAST_BILINEAR,
         NULL, NULL, NULL);
     if (!sws)
         die("sws_getContext\n");
@@ -79,7 +78,7 @@ static void render(void) {
     vid->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
     vid->codecpar->width = WIDTH;
     vid->codecpar->height = HEIGHT;
-    vid->codecpar->format = AV_PIX_FMT_YUV420P;
+    vid->codecpar->format = AV_PIX_FMT_NV21;
     vid->codecpar->bit_rate = 4000000;
     av_opt_set(cctx, "preset", "veryslow", 0);
     avcodec_parameters_to_context(cctx, vid->codecpar);
@@ -87,7 +86,7 @@ static void render(void) {
     cctx->time_base.den = FPS; 
     cctx->framerate.num = FPS; 
     cctx->framerate.den = 1; 
-    cctx->gop_size = 10 * FPS;
+    cctx->gop_size = 20 * FPS;
     avcodec_parameters_from_context(vid->codecpar, cctx);
     ret = avcodec_open2(cctx, codec, NULL);
     if (ret < 0)
@@ -95,7 +94,7 @@ static void render(void) {
     ret = avio_open(&fmtctx->pb, path, AVIO_FLAG_WRITE);
     if (ret < 0)
         die("avio_open: %s\n", av_err2str(ret));
-            ret = avformat_write_header(fmtctx, NULL);
+    ret = avformat_write_header(fmtctx, NULL);
     if (ret < 0)
         die("avformat_write_header: %s\n", av_err2str(ret));
     pkt = av_packet_alloc();
@@ -110,7 +109,7 @@ static void render(void) {
     ret = av_frame_get_buffer(frame, 0);
     if (ret < 0)
         die("av_frame_get_buffer: %s\n", av_err2str(ret));
-    pts = n = 0;
+    pts = 0;
     vec3 eye = {0.0f, 0.0f, 32.0f};
     vec3 front = {0.0f, 0.0f, -1.0f};
     while (next_frame()) {
@@ -163,10 +162,6 @@ int main(int argc, char **argv) {
         exit(1);
     }
     init_draw(WIDTH, HEIGHT);
-    GLuint rbo;
-    glGenRenderbuffers(1, &rbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, WIDTH, HEIGHT);
     glViewport(0, 0, WIDTH, HEIGHT);
     discard_line();
     render();
