@@ -65,13 +65,13 @@ int main(void) {
         }
         draw(w, h, eye, front);
         SDL_GL_SwapWindow(wnd);
+        SDL_PumpEvents();
+        update_rots();
+        update_dirs();
         if (acc > freq / 10)
             acc = freq / 10;
         while (acc >= frame) {
             acc -= frame;
-            SDL_PumpEvents();
-            update_rots();
-            update_dirs();
             update_eye();
             update_sim();
         }
