@@ -68,8 +68,6 @@ void update_sim(void) {
                 for (int z = z0; z <= z1; z++) {
                     int j = tiles[x][y][z]; 
                     for (; j != UINT16_MAX; j = nodes[j]) {
-                        if (j >= i)
-                            continue;
                         vec3 normal;
                         glm_vec3_sub(balls_pos[i], balls_pos[j], normal);
                         float d2 = glm_vec3_norm2(normal); 
