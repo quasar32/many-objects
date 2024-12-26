@@ -7,26 +7,23 @@
 #include "sim.h"
 #include "misc.h"
 
-struct render {
-    vec4 positions[N_BALLS];
-    uint32_t colors[N_BALLS];
-};
-
 SDL_Window *wnd;
 
 static GLuint vao;
-static GLuint ssbo;
+static GLuint ssbo[2];
 static GLuint tex;
 static GLuint prog;
-static struct render render;
 static uint32_t colors[N_BALLS];
+
+static vec4 gl_positions[N_BALLS];
+static uint32_t gl_colors[N_BALLS];
 
 static GLuint gen_shader(GLenum type, const char *path) {
     GLuint shader = glCreateShader(type);
     FILE *fp = fopen(path, "r");
     if (!fp) 
         die("could not open %s\n", path);
-    char data[1024];
+    char data[4096];
     size_t sz = fread(data, 1, sizeof(data), fp);
     if (sz == sizeof(data))
         die("%s too big\n", path);
@@ -112,7 +109,7 @@ static void init_tex(void) {
                 double z1 = y0 * s + z0 * c;
                 double z2 = x0 * s + z1 * c; 
                 int intensity = fmax(z2, 0.0) * 255;
-                pixels[py * tex_size + px] = intensity + 256 * 255;
+                pixels[py * tex_size + px] = intensity + 255 * 256;
             }
         }
     }
@@ -129,11 +126,15 @@ static void init_tex(void) {
 
 static void init_bufs(void) {
     glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &ssbo);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(render), 
+    glGenBuffers(2, ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[0]);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gl_positions), 
                  NULL, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, ssbo);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, ssbo[0]);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[1]);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(gl_colors), 
+                 NULL, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, ssbo[1]);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
@@ -184,10 +185,10 @@ void draw(int w, int h, vec3 eye, vec3 front) {
     vec3 center;
     glm_vec3_add(eye, front, center);
     glm_lookat(eye, center, GLM_YUP, view);
-    glm_perspective_default(w / (float) h, proj);
+    glm_perspective(GLM_PI_4f, w / (float) h, 0.01f, 1000.0f, proj);
 
     /* transform positions into view space*/
-    float zs[N_BALLS];
+    float *zs = malloc(N_BALLS * sizeof(float));
     for (int i = 0; i < N_BALLS; i++) {
         vec4 v;
         glm_vec4(balls_pos[i], 1.0f, v);
@@ -196,20 +197,28 @@ void draw(int w, int h, vec3 eye, vec3 front) {
     }
 
     /* indirect sort view space positions back to front*/
-    int balls_idx[N_BALLS]; 
+    int *balls_idx = malloc(N_BALLS * sizeof(int));
     for (int i = 0; i < N_BALLS; i++) {
         balls_idx[i] = i;
     }
     qsort_r(balls_idx, N_BALLS, sizeof(int), pos_cmp, zs);
+    free(zs);
+    zs = NULL;
 
     /* create ball ssbo data*/
     for (int i = 0; i < N_BALLS; i++) {
         int j = balls_idx[i];
-        glm_vec4(balls_pos[j], 1.0f, render.positions[i]);
-        render.colors[i] = colors[j];
+        glm_vec4(balls_pos[j], 1.0f, gl_positions[i]);
+        gl_colors[i] = colors[j];
     }
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(render), &render);
+    free(balls_idx);
+    balls_idx = NULL;
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[0]);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, 
+                    sizeof(gl_positions), &gl_positions);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[1]);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, 
+                    sizeof(gl_colors), &gl_colors);
     
     /* render data */
     glEnable(GL_BLEND);

@@ -1,13 +1,16 @@
 #version 460 core
 
-#define RADIUS 0.4f
+#define RADIUS 0.4
 
 layout(location = 0) uniform mat4 proj;
 layout(location = 1) uniform mat4 view;
 
-layout(binding = 2, std430) readonly buffer balls {
-    vec4 positions[4096];
-    uint colors[4096];
+layout(binding = 2, std430) readonly buffer color_positions {
+    vec4 positions[];
+};
+
+layout(binding = 3, std430) readonly buffer color_colors {
+    uint colors[];
 };
 
 const int indices[6] = int[6] (0, 1, 2, 2, 3, 0); 

@@ -2,7 +2,7 @@
 #include "draw.h"
 #include "sim.h"
 
-static vec3 eye = {0.0f, 0.0f, 32.0f};
+static vec3 eye = {0.0f, 0.0f, 128.0f};
 static vec3 front;
 static vec3 right;
 static float yaw = -GLM_PI_2f;
@@ -11,27 +11,28 @@ static const Uint8 *keys;
 static int n_keys;
 static int w0, h0, w, h;
 
-#define MAX_PITCH (GLM_PI_2f - 0.01F)
+#define MAX_PITCH (GLM_PI_2f - 0.01f)
 #define MIN_PITCH (-MAX_PITCH)
 
-static void update_rots(void) {
+static void step_rots(void) {
     int x, y;
     SDL_GetRelativeMouseState(&x, &y);
     yaw += x * 0.001f;
     pitch -= y * 0.001f;
-    yaw = fmodf(yaw, GLM_PIf * 2.0F);
+    yaw = fmodf(yaw, GLM_PIf * 2.0f);
     pitch = fminf(fmaxf(pitch, MIN_PITCH), MAX_PITCH);
 }
 
-static void update_dirs(void) {
+static void step_dirs(void) {
     float xp = cosf(pitch);
     front[0] = cosf(yaw) * xp;
     front[1] = sinf(pitch);
     front[2] = sinf(yaw) * xp;
     glm_vec3_cross(front, GLM_YUP, right);
+    glm_vec3_normalize(right);
 }
 
-static void update_eye(void) {
+static void step_eye(void) {
     if (keys[SDL_SCANCODE_W])
         glm_vec3_muladds(front, 0.2f, eye);
     if (keys[SDL_SCANCODE_S])
@@ -66,14 +67,14 @@ int main(void) {
         draw(w, h, eye, front);
         SDL_GL_SwapWindow(wnd);
         SDL_PumpEvents();
-        update_rots();
-        update_dirs();
+        step_rots();
+        step_dirs();
         if (acc > freq / 10)
             acc = freq / 10;
         while (acc >= frame) {
             acc -= frame;
-            update_eye();
-            update_sim();
+            step_eye();
+            step_sim();
         }
     }
     return EXIT_SUCCESS;
