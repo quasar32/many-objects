@@ -7,7 +7,7 @@
 
 static long get_time(void) {
     struct timespec t;
-    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) < 0) {
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &t) < 0) {
         perror("clock_gettime");
         exit(EXIT_FAILURE);
     }
