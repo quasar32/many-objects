@@ -30,7 +30,7 @@ void init_sim(void) {
     }
 }
 
-void step_sim(void) {
+static void symplectic_euler(void) {
     for (int i = 0; i < N_BALLS; i++) {
         glm_vec3_copy(balls_pos[i], balls_pos0[i]);
         balls_vel[i][1] -= 10.0f * DT;
@@ -43,7 +43,13 @@ void step_sim(void) {
             }
         }
     }
+}
+
+static void clear_tiles(void) {
     memset(tiles, 0xFF, sizeof(tiles));
+}
+
+static void add_nodes(void) {
     for (int i = 0; i < N_BALLS; i++) {
         int x = balls_pos[i][0] + 32.0f;
         int y = balls_pos[i][1] + 32.0f;
@@ -51,10 +57,16 @@ void step_sim(void) {
         nodes[i] = tiles[x][y][z];
         tiles[x][y][z] = i;
     }
+}
+
+static void newton_raphson(void) {
     for (int i = 0; i < N_BALLS; i++) {
         glm_vec3_sub(balls_pos[i], balls_pos0[i], balls_vel[i]);
         glm_vec3_divs(balls_vel[i], DT, balls_vel[i]);
     }
+}
+
+static void resolve_collisions(void) {
     for (int i = 0; i < N_BALLS; i++) {
         int bx = balls_pos[i][0] + 32.0f;
         int by = balls_pos[i][1] + 32.0f;
@@ -89,5 +101,13 @@ void step_sim(void) {
             }
         }
     }
+}
+
+void step_sim(void) {
+    symplectic_euler();
+    clear_tiles();
+    add_nodes();
+    newton_raphson();
+    resolve_collisions();
 }
 
