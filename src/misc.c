@@ -13,7 +13,8 @@ void die(const char *fmt, ...) {
 
 void *xmalloc(size_t size) {
     void *ptr = malloc(size);
-    if (!ptr)
+    if (!ptr) {
         die("out of memory\n");
+    }
     return ptr;
 }

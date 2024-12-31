@@ -19,11 +19,11 @@ static long get_time(void) {
 int main(int argc, char **argv) {
     init_sim();
     long t0 = get_time();
-    for (int t = 0; t < N_FRAMES; t++) {
+    for (int t = 0; t < N_STEPS; t++) {
         step_sim();
     }
     long t1 = get_time();
     long dt = (t1 - t0) / 1000000; 
-    fprintf(stderr, "%ld ms\n", dt); 
+    printf("%ld ms\n", dt); 
     return 0;
 }

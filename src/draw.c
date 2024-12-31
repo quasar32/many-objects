@@ -8,6 +8,10 @@
 #include "misc.h"
 
 SDL_Window *wnd;
+vec3s eye = {-64.0f, 0.0f, 0.0f};
+vec3s front = {1.0f, 0.0f, 0.0f};
+int width = 640;
+int height = 480;
 
 static GLuint vao;
 static GLuint ssbo[2];
@@ -15,7 +19,7 @@ static GLuint tex;
 static GLuint prog;
 static uint32_t colors[N_BALLS];
 
-static vec4 gl_positions[N_BALLS];
+static vec4s gl_positions[N_BALLS];
 static uint32_t gl_colors[N_BALLS];
 
 static GLuint gen_shader(GLenum type, const char *path) {
@@ -53,7 +57,7 @@ static void std_die(const char *func) {
     exit(EXIT_FAILURE);
 }
 
-static void init_sdl(int width, int height) {
+static void init_sdl(void) {
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
         sdl2_die("SDL_Init");
     if (atexit(SDL_Quit))
@@ -162,8 +166,8 @@ static void init_colors(void) {
     }
 }
 
-void init_draw(int w, int h) {
-    init_sdl(w, h);
+void init_draw(void) {
+    init_sdl();
     init_prog();
     init_bufs();
     init_tex();
@@ -179,21 +183,19 @@ static int pos_cmp(const void *ip, const void *jp, void *arg) {
     return (a > b) - (a < b);
 }
 
-void draw(int w, int h, vec3 eye, vec3 front) {
+void draw(void) {
     /* generate view matrices */
-    mat4 view, proj;
-    vec3 center;
-    glm_vec3_add(eye, front, center);
-    glm_lookat(eye, center, GLM_YUP, view);
-    glm_perspective(GLM_PI_4f, w / (float) h, 0.01f, 1000.0f, proj);
+    vec3s center = vec3_add(eye, front);
+    mat4s view = glms_lookat(eye, center, GLMS_YUP);
+    float aspect = width / (float) height; 
+    mat4s proj = glms_perspective_default(aspect);
 
     /* transform positions into view space*/
     float *zs = malloc(N_BALLS * sizeof(float));
     for (int i = 0; i < N_BALLS; i++) {
-        vec4 v;
-        glm_vec4(balls_pos[i], 1.0f, v);
-        glm_mat4_mulv(view, v, v);
-        zs[i] = v[2];
+        vec4s v = glms_vec4(sim_x[i], 1.0f);
+        v = mat4_mulv(view, v);
+        zs[i] = v.z;
     }
 
     /* indirect sort view space positions back to front*/
@@ -208,7 +210,7 @@ void draw(int w, int h, vec3 eye, vec3 front) {
     /* create ball ssbo data*/
     for (int i = 0; i < N_BALLS; i++) {
         int j = balls_idx[i];
-        glm_vec4(balls_pos[j], 1.0f, gl_positions[i]);
+        gl_positions[i] = glms_vec4(sim_x[j], 1.0f);
         gl_colors[i] = colors[j];
     }
     free(balls_idx);
@@ -226,8 +228,8 @@ void draw(int w, int h, vec3 eye, vec3 front) {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(prog);
-    glUniformMatrix4fv(0, 1, GL_FALSE, (float *) proj);
-    glUniformMatrix4fv(1, 1, GL_FALSE, (float *) view);
+    glUniformMatrix4fv(0, 1, GL_FALSE, (float *) &proj);
+    glUniformMatrix4fv(1, 1, GL_FALSE, (float *) &view);
     glBindVertexArray(vao);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex);

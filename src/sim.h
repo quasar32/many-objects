@@ -1,17 +1,17 @@
 #pragma once
 
-#define N_BALLS 32768 
+#define N_BALLS 4096
 #define RADIUS 0.4f
 #define DIAMETER 0.8f
-#define FPS 60
-#define DT (1.0f / FPS)
-#define N_FRAMES (30 * FPS)
+#define SPS 600
+#define DT (1.0f / SPS)
+#define N_STEPS (10 * SPS)
 
-#include <cglm/cglm.h>
+#include <cglm/struct.h>
 
-extern vec3 balls_pos[N_BALLS];
-extern vec3 balls_pos0[N_BALLS];
-extern vec3 balls_vel[N_BALLS];
+extern vec3s sim_x[N_BALLS];
+extern vec3s sim_x0[N_BALLS];
+extern vec3s sim_v[N_BALLS];
 
 void init_sim(void);
 void step_sim(void);
