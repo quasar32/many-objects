@@ -1,7 +1,7 @@
 #include "sim.h"
+#include "worker.h"
 #include <math.h>
 #include <string.h>
-#include <pthread.h>
 
 #define GRID_LEN 32
 #define GRID_MIN (RADIUS - GRID_LEN / 2)
@@ -39,6 +39,7 @@ static void init_velocities(void) {
 }
 
 void init_sim(void) {
+    create_workers();
     init_positions();
     init_velocities();
 }
@@ -71,8 +72,8 @@ static void init_grid(void) {
     }
 }
 
-static void resolve_collisions(void) {
-    for (int i = 0; i < N_BALLS; i++) {
+static void resolve_tile_collisions(int x, int y, int z) {
+    for (int i = grid[x][y][z]; i != UINT16_MAX; i = nodes[i]) {
         int bx = sim_x[i].x + GRID_LEN / 2;
         int by = sim_x[i].y + GRID_LEN / 2;
         int bz = sim_x[i].z + GRID_LEN / 2;
@@ -108,6 +109,31 @@ static void resolve_collisions(void) {
                 }
             }
         }
+    }
+}
+
+static int collision_idx;
+
+static void resolve_collisions_thirds(int worker_idx) {
+    int off = collision_idx % 3;
+    int len = (GRID_LEN - off + 2) / 3;
+    int x0 = worker_idx * len / N_WORKERS * 3 + off;
+    int x1 = (worker_idx + 1) * len / N_WORKERS * 3 + off;
+    int y0 = collision_idx / 3 % 3;
+    int z0 = collision_idx / 9;
+    for (int x = x0; x < x1; x += 3) {
+        for (int y = y0; y < GRID_LEN; y += 3) {
+            for (int z = z0; z < GRID_LEN; z += 3) {
+                resolve_tile_collisions(x, y, z);
+            }
+        }
+    }
+}
+
+static void resolve_collisions(void) {
+    for (int i = 0; i < 27; i++) {
+        collision_idx = i;
+        parallel_work(resolve_collisions_thirds);
     }
 }
 

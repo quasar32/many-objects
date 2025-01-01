@@ -19,5 +19,5 @@ not provided, default is `many-objects.mp4`.
 
 `bin/video` 
 
-## `bin/wnd`
-`bin/wnd` opens window with a continuous simulation.
+## `bin/window`
+`bin/window` opens window with a continuous simulation.
