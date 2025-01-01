@@ -72,59 +72,33 @@ static void init_grid(void) {
     }
 }
 
-static void resolve_tile_collisions(int x, int y, int z) {
-    for (int i = grid[x][y][z]; i != UINT16_MAX; i = nodes[i]) {
-        int bx = sim_x[i].x + GRID_LEN / 2;
-        int by = sim_x[i].y + GRID_LEN / 2;
-        int bz = sim_x[i].z + GRID_LEN / 2;
-        int x0 = max(bx - 1, 0); 
-        int y0 = max(by - 1, 0);
-        int z0 = max(bz - 1, 0);
-        int x1 = min(bx + 1, GRID_LEN - 1); 
-        int y1 = min(by + 1, GRID_LEN - 1);
-        int z1 = min(bz + 1, GRID_LEN - 1);
-        for (int x = x0; x <= x1; x++) {
-            for (int y = y0; y <= y1; y++) {
-                for (int z = z0; z <= z1; z++) {
-                    int j = grid[x][y][z]; 
-                    for (; j != UINT16_MAX; j = nodes[j]) {
-                        if (j < i) {
-                            vec3s normal = vec3_sub(sim_x[i], sim_x[j]);
-                            float d2 = vec3_norm2(normal); 
-                            if (d2 > 0.0f && d2 < DIAMETER * DIAMETER) {
-                                float d = sqrtf(d2);
-                                normal = vec3_divs(normal, d);
-                                float corr = (DIAMETER - d) / 2.0f;
-                                vec3s dx = vec3_scale(normal, corr);
-                                sim_x[i] = vec3_add(sim_x[i], dx);
-                                sim_x[j] = vec3_sub(sim_x[j], dx);
-                                float vi = vec3_dot(sim_v[i], normal);
-                                float vj = vec3_dot(sim_v[j], normal);
-                                vec3s dv = vec3_scale(normal, vi - vj);
-                                sim_v[i] = vec3_sub(sim_v[i], dv);
-                                sim_v[j] = vec3_add(sim_v[j], dv);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+static void resolve_ball_ball_collision(int i, int j) {
+    vec3s normal = vec3_sub(sim_x[i], sim_x[j]);
+    float d2 = vec3_norm2(normal);
+    if (d2 > 0.0f && d2 < DIAMETER * DIAMETER) {
+        float d = sqrtf(d2);
+        normal = vec3_divs(normal, d);
+        float corr = (DIAMETER - d) / 2.0f;
+        vec3s dx = vec3_scale(normal, corr);
+        sim_x[i] = vec3_add(sim_x[i], dx);
+        sim_x[j] = vec3_sub(sim_x[j], dx);
+        float vi = vec3_dot(sim_v[i], normal);
+        float vj = vec3_dot(sim_v[j], normal);
+        vec3s dv = vec3_scale(normal, vi - vj);
+        sim_v[i] = vec3_sub(sim_v[i], dv);
+        sim_v[j] = vec3_add(sim_v[j], dv);
     }
 }
 
-static int collision_idx;
-
-static void resolve_collisions_thirds(int worker_idx) {
-    int off = collision_idx % 3;
-    int len = (GRID_LEN - off + 2) / 3;
-    int x0 = worker_idx * len / N_WORKERS * 3 + off;
-    int x1 = (worker_idx + 1) * len / N_WORKERS * 3 + off;
-    int y0 = collision_idx / 3 % 3;
-    int z0 = collision_idx / 9;
-    for (int x = x0; x < x1; x += 3) {
-        for (int y = y0; y < GRID_LEN; y += 3) {
-            for (int z = z0; z < GRID_LEN; z += 3) {
-                resolve_tile_collisions(x, y, z);
+static void resolve_tile_tile_collisions(int i0, int j0) {
+    for (int i = i0; i != UINT16_MAX; i = nodes[i]) {
+        if (i0 == j0) {
+            for (int j = nodes[i]; j != UINT16_MAX; j = nodes[j]) {
+                resolve_ball_ball_collision(i, j);
+            }
+        } else {
+            for (int j = j0; j != UINT16_MAX; j = nodes[j]) {
+                resolve_ball_ball_collision(i, j);
             }
         }
     }
@@ -132,8 +106,65 @@ static void resolve_collisions_thirds(int worker_idx) {
 
 static void resolve_collisions(void) {
     for (int i = 0; i < 27; i++) {
-        collision_idx = i;
-        parallel_work(resolve_collisions_thirds);
+        int dx = i % 3 - 1;
+        int dy = i / 3 % 3 - 1;
+        int dz = i / 9 - 1;
+        int ix = dx && !dy && !dz ? 2 : 1;
+        int iy = dy && !dz ? 2 : 1;
+        int iz = dz ? 2 : 1;
+        int nd = abs(dx) + abs(dy) + abs(dz);
+        int tx = abs(dx);
+        int ty = abs(dy);
+        int tz = abs(dz);
+        int x0, y0, x1, y1;
+        switch (nd) {
+        case 0:
+        case 1:
+            x0 = dx < 0;
+            y0 = dy < 0;
+            x1 = dx < 0;
+            y1 = dy < 0;
+            break;
+        case 2:
+            if (!dx) {
+                ty = dy / dz;
+                x0 = 0;
+                y0 = ty < 0;
+                x1 = 0;
+                y1 = ty > 0;
+            } else if (!dy) {
+                tx = dx / dz;
+                x0 = tx < 0;
+                y0 = 0;
+                x1 = tx > 0;
+                y1 = 0;
+            } else {
+                tx = dx / dy;
+                x0 = tx < 0;
+                y0 = dy < 0;
+                x1 = tx > 0;
+                y1 = dy < 0;
+            }
+            break;
+        default:
+            tx = dx / dz;
+            ty = dy / dz;
+            x0 = tx < 0;
+            y0 = ty < 0;
+            x1 = tx > 0;
+            y1 = ty > 0;
+        }
+        int z0 = dz < 0;
+        int z1 = dz < 0;
+        for (int x = x0; x < GRID_LEN - x1; x += ix) {
+            for (int y = y0; y < GRID_LEN - y1; y += iy) {
+                for (int z = z0; z < GRID_LEN - z1; z += iz) {
+                    int i = grid[x][y][z];
+                    int j = grid[x + tx][y + ty][z + tz];
+                    resolve_tile_tile_collisions(i, j);
+                }
+            }
+        }
     }
 }
 
