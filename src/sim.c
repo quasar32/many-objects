@@ -48,8 +48,10 @@ static float fclampf(float v, float l, float h) {
     return fminf(fmaxf(v, l), h);
 }
 
-static void symplectic_euler(void) {
-    for (int i = 0; i < N_BALLS; i++) {
+static void symplectic_euler(int worker_idx) {
+    int i = worker_idx * N_BALLS / N_WORKERS;
+    int n = (worker_idx + 1) * N_BALLS / N_WORKERS;
+    for (; i < n; i++) {
         sim_v[i].y -= 10.0f * DT;
         sim_x0[i] = sim_x[i];
         sim_x[i] = vec3_muladds(sim_v[i], DT, sim_x[i]);
@@ -180,7 +182,7 @@ static void resolve_collisions(void) {
 
 void step_sim(void) {
     activate_workers();
-    symplectic_euler();
+    parallel_work(symplectic_euler);
     init_grid();
     resolve_collisions();
     deactivate_workers();
