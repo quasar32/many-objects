@@ -106,65 +106,19 @@ static void resolve_tile_tile_collisions(int i0, int j0) {
     }
 }
 
-static int collision_idx;
+static int tx, ty, tz;
+static int px, py, pz;
+static int nx, ny, nz;
+static int ix, iy, iz;
+static int nd;
 
 static void resolve_pair_collisions(int worker_idx) {
-    int dx = collision_idx % 3 - 1;
-    int dy = collision_idx / 3 % 3 - 1;
-    int dz = collision_idx / 9 - 1;
-    int ix = dx && !dy && !dz ? 2 : 1;
-    int iy = dy && !dz ? 2 : 1;
-    int iz = dz ? 2 : 1;
-    int nd = abs(dx) + abs(dy) + abs(dz);
-    int tx = abs(dx);
-    int ty = abs(dy);
-    int tz = abs(dz);
-    int x0, y0, x1, y1;
-    switch (nd) {
-    case 0:
-    case 1:
-        x0 = dx < 0;
-        y0 = dy < 0;
-        x1 = dx < 0;
-        y1 = dy < 0;
-        break;
-    case 2:
-        if (!dx) {
-            ty = dy / dz;
-            x0 = 0;
-            y0 = ty < 0;
-            x1 = 0;
-            y1 = ty > 0;
-        } else if (!dy) {
-            tx = dx / dz;
-            x0 = tx < 0;
-            y0 = 0;
-            x1 = tx > 0;
-            y1 = 0;
-        } else {
-            tx = dx / dy;
-            x0 = tx < 0;
-            y0 = dy < 0;
-            x1 = tx > 0;
-            y1 = dy < 0;
-        }
-        break;
-    default:
-        tx = dx / dz;
-        ty = dy / dz;
-        x0 = tx < 0;
-        y0 = ty < 0;
-        x1 = tx > 0;
-        y1 = ty > 0;
-    }
-    int z0 = dz < 0;
-    int z1 = dz < 0;
-    int lx = (GRID_LEN - x0 - x1 + ix - 1) / ix;
-    int xi = worker_idx * lx / N_WORKERS * ix + x0;
-    int xf = (worker_idx + 1) * lx / N_WORKERS * ix + x0;
+    int lx = (GRID_LEN - px - nx + ix - 1) / ix;
+    int xi = worker_idx * lx / N_WORKERS * ix + px;
+    int xf = (worker_idx + 1) * lx / N_WORKERS * ix + px;
     for (int x = xi; x < xf; x += ix) {
-        for (int y = y0; y < GRID_LEN - y1; y += iy) {
-            for (int z = z0; z < GRID_LEN - z1; z += iz) {
+        for (int y = py; y < GRID_LEN - ny; y += iy) {
+            for (int z = pz; z < GRID_LEN - nz; z += iz) {
                 int i = grid[x][y][z];
                 int j = grid[x + tx][y + ty][z + tz];
                 resolve_tile_tile_collisions(i, j);
@@ -175,7 +129,55 @@ static void resolve_pair_collisions(int worker_idx) {
 
 static void resolve_collisions(void) {
     for (int i = 0; i < 27; i++) {
-        collision_idx = i;
+        int dx = i % 3 - 1;
+        int dy = i / 3 % 3 - 1;
+        int dz = i / 9 - 1;
+        ix = dx && !dy && !dz ? 2 : 1;
+        iy = dy && !dz ? 2 : 1;
+        iz = dz ? 2 : 1;
+        nd = abs(dx) + abs(dy) + abs(dz);
+        tx = abs(dx);
+        ty = abs(dy);
+        tz = abs(dz);
+        switch (nd) {
+        case 0:
+        case 1:
+            px = dx < 0;
+            py = dy < 0;
+            nx = dx < 0;
+            ny = dy < 0;
+            break;
+        case 2:
+            if (!dx) {
+                ty = dy / dz;
+                px = 0;
+                py = ty < 0;
+                nx = 0;
+                ny = ty > 0;
+            } else if (!dy) {
+                tx = dx / dz;
+                px = tx < 0;
+                py = 0;
+                nx = tx > 0;
+                ny = 0;
+            } else {
+                tx = dx / dy;
+                px = tx < 0;
+                py = dy < 0;
+                nx = tx > 0;
+                ny = dy < 0;
+            }
+            break;
+        default:
+            tx = dx / dz;
+            ty = dy / dz;
+            px = tx < 0;
+            py = ty < 0;
+            nx = tx > 0;
+            ny = ty > 0;
+        }
+        pz = dz < 0;
+        nz = dz < 0;
         parallel_work(resolve_pair_collisions);
     }
 }
