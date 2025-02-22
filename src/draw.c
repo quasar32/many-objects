@@ -57,11 +57,22 @@ static void std_die(const char *func) {
     exit(EXIT_FAILURE);
 }
 
+static void destroy_wnd(void) {
+    SDL_DestroyWindow(wnd);
+}
+
+static void atexit_fatal(void(*func)(void)) {
+    if (atexit(func)) {
+        func();
+        std_die("atexit");
+    }
+}
+
 static void init_sdl(void) {
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
         sdl2_die("SDL_Init");
-    if (atexit(SDL_Quit))
-        std_die("atexit");
+    atexit_fatal(SDL_Quit);
+    atexit_fatal(destroy_wnd);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 
                     SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
@@ -193,7 +204,7 @@ void draw(void) {
     /* transform positions into view space*/
     float *zs = malloc(N_BALLS * sizeof(float));
     for (int i = 0; i < N_BALLS; i++) {
-        vec4s v = glms_vec4(sim_x[i], 1.0f);
+        vec4s v = glms_vec4(sim.x[i], 1.0f);
         v = mat4_mulv(view, v);
         zs[i] = v.z;
     }
@@ -210,7 +221,7 @@ void draw(void) {
     /* create ball ssbo data*/
     for (int i = 0; i < N_BALLS; i++) {
         int j = balls_idx[i];
-        gl_positions[i] = glms_vec4(sim_x[j], 1.0f);
+        gl_positions[i] = glms_vec4(sim.x[j], 1.0f);
         gl_colors[i] = colors[j];
     }
     free(balls_idx);

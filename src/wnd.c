@@ -54,7 +54,14 @@ int main(void) {
     keys = SDL_GetKeyboardState(&n_keys);
     SDL_ShowWindow(wnd);
     SDL_SetRelativeMouseMode(SDL_TRUE);
-    while (!SDL_QuitRequested()) {
+    int running = 1;
+    while (running) {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_QUIT) {
+                running = 0;
+            }
+        }
         Uint64 t1 = SDL_GetPerformanceCounter();
         acc += t1 - t0;
         t0 = t1;

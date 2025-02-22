@@ -4,14 +4,14 @@ WINDOW_OBJ=obj/draw.o obj/gl.o obj/misc.o obj/sim.o obj/wnd.o obj/worker.o
 CFLAGS=-Idep/cglm/include -Idep/glad/include -DCGLM_OMIT_NS_FROM_STRUCT_API
 
 bin/bench: bin obj $(BENCH_OBJ) 
-	gcc $(BENCH_OBJ) -o $@ -lm
+	gcc $(BENCH_OBJ) -o $@ -lm -lOpenCL
 
 bin/video: bin obj $(VIDEO_OBJ) 
 	gcc $(VIDEO_OBJ) -o $@ -lSDL2main -lSDL2 -lm -lswscale \
-		-lavcodec -lavformat -lavutil -lx264 
+		-lavcodec -lavformat -lavutil -lx264 -lOpenCL
 
 bin/window: bin obj $(WINDOW_OBJ) 
-	gcc $(WINDOW_OBJ) -o $@ -lSDL2main -lSDL2 -lm
+	gcc $(WINDOW_OBJ) -o $@ -lSDL2main -lSDL2 -lm -lOpenCL
 
 bin:
 	mkdir bin
