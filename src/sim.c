@@ -151,12 +151,12 @@ static void symplectic_euler(int worker_idx) {
     for (; i < n; i++) {
         sim.v[i].y -= 10.0f * DT;
         sim.x0[i] = sim.x[i];
-        sim.x[i] = vec3_muladds(sim.v[i], DT, sim.x[i]);
+        sim.x[i] = vec4_muladds(sim.v[i], DT, sim.x[i]);
         sim.x[i].x = fclampf(sim.x[i].x, GRID_MIN, GRID_MAX);
         sim.x[i].y = fclampf(sim.x[i].y, GRID_MIN, GRID_MAX);
         sim.x[i].z = fclampf(sim.x[i].z, GRID_MIN, GRID_MAX);
-        sim.v[i] = vec3_sub(sim.x[i], sim.x0[i]);
-        sim.v[i] = vec3_scale(sim.v[i], SPS);
+        sim.v[i] = vec4_sub(sim.x[i], sim.x0[i]);
+        sim.v[i] = vec4_scale(sim.v[i], SPS);
     }
 }
 
@@ -172,20 +172,20 @@ static void init_grid(void) {
 }
 
 static void resolve_ball_ball_collision(int i, int j) {
-    vec3s normal = vec3_sub(sim.x[i], sim.x[j]);
-    float d2 = vec3_norm2(normal);
+    vec4s normal = vec4_sub(sim.x[i], sim.x[j]);
+    float d2 = vec4_norm2(normal);
     if (d2 > 0.0f && d2 < DIAMETER * DIAMETER) {
         float d = sqrtf(d2);
-        normal = vec3_divs(normal, d);
+        normal = vec4_divs(normal, d);
         float corr = (DIAMETER - d) / 2.0f;
-        vec3s dx = vec3_scale(normal, corr);
-        sim.x[i] = vec3_add(sim.x[i], dx);
-        sim.x[j] = vec3_sub(sim.x[j], dx);
-        float vi = vec3_dot(sim.v[i], normal);
-        float vj = vec3_dot(sim.v[j], normal);
-        vec3s dv = vec3_scale(normal, vi - vj);
-        sim.v[i] = vec3_sub(sim.v[i], dv);
-        sim.v[j] = vec3_add(sim.v[j], dv);
+        vec4s dx = vec4_scale(normal, corr);
+        sim.x[i] = vec4_add(sim.x[i], dx);
+        sim.x[j] = vec4_sub(sim.x[j], dx);
+        float vi = vec4_dot(sim.v[i], normal);
+        float vj = vec4_dot(sim.v[j], normal);
+        vec4s dv = vec4_scale(normal, vi - vj);
+        sim.v[i] = vec4_sub(sim.v[i], dv);
+        sim.v[j] = vec4_add(sim.v[j], dv);
     }
 }
 
@@ -227,19 +227,41 @@ static void resolve_pair_collisions(int worker_idx) {
 
 static cl_ulong elapsed;
 
-static void gpu_runtime(void) {
-    cl_event ev;
+static void copy_grid_to_gpu(void) {
     cl_int err;
     err = clEnqueueWriteBuffer(
         cmdq, /* command queue */
         sim_mem, /* destination */
         CL_TRUE, /* blocking */
-        0, /* offset of destination */
-        sizeof(sim), /* size of copy */
+        offsetof(struct sim, nodes), /* offset of destination */
+        sizeof(sim.nodes) + sizeof(sim.grid), /* size of copy */
         &sim, /* source */
         0, /* empty wait list */
         NULL, 
-        &ev 
+        NULL
+    );
+    if (err) {
+        die("clEnqueueWriteBuffer(%d)\n", err);
+    }
+}
+
+static void resolve_pair_collisions_gpu(void) {
+    cl_event ev;
+    cl_int err;
+    static int first = 1;
+    size_t offset = first ? 0 : offsetof(struct sim, tx);
+    size_t size = sizeof(sim) - offset;
+    first = 0;
+    err = clEnqueueWriteBuffer(
+        cmdq, /* command queue */
+        sim_mem, /* destination */
+        CL_TRUE, /* blocking */
+        offset, /* offset of destination */
+        size, /* size of copy */
+        &sim, /* source */
+        0, /* empty wait list */
+        NULL, 
+        NULL
     );
     if (err) {
         die("clEnqueueWriteBuffer(%d)\n", err);
@@ -273,13 +295,12 @@ static void gpu_runtime(void) {
     }
     elapsed += end - start;
     clReleaseEvent(ev);
-#if 0
     err = clEnqueueReadBuffer(
         cmdq, 
         sim_mem, 
         CL_TRUE, 
         0, 
-        sizeof(sim), 
+        offsetof(struct sim, nodes), 
         &sim, 
         0, 
         NULL, 
@@ -288,7 +309,6 @@ static void gpu_runtime(void) {
     if (err) {
         die("clEnqueueReadBuffer", err);
     }
-#endif
 }
 
 static void resolve_collisions(void) {
@@ -343,7 +363,7 @@ static void resolve_collisions(void) {
         sim.pz = dz < 0;
         sim.nz = dz < 0;
         //parallel_work(resolve_pair_collisions);
-        gpu_runtime();
+        resolve_pair_collisions_gpu();
     }
 }
 
@@ -351,9 +371,10 @@ void step_sim(void) {
     activate_workers();
     parallel_work(symplectic_euler);
     init_grid();
+    copy_grid_to_gpu();
     resolve_collisions();
     deactivate_workers();
     static int n;
     if (++n == N_STEPS / 10)
-        printf("%f\n", elapsed / 1e9);
+        printf("%ld\n", elapsed / 1000000);
 }

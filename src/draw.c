@@ -204,7 +204,7 @@ void draw(void) {
     /* transform positions into view space*/
     float *zs = malloc(N_BALLS * sizeof(float));
     for (int i = 0; i < N_BALLS; i++) {
-        vec4s v = glms_vec4(sim.x[i], 1.0f);
+        vec4s v = glms_vec4(glms_vec3(sim.x[i]), 1.0f);
         v = mat4_mulv(view, v);
         zs[i] = v.z;
     }
@@ -221,7 +221,7 @@ void draw(void) {
     /* create ball ssbo data*/
     for (int i = 0; i < N_BALLS; i++) {
         int j = balls_idx[i];
-        gl_positions[i] = glms_vec4(sim.x[j], 1.0f);
+        gl_positions[i] = glms_vec4(glms_vec3(sim.x[j]), 1.0f);
         gl_colors[i] = colors[j];
     }
     free(balls_idx);
