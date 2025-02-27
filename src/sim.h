@@ -1,6 +1,5 @@
 #pragma once
 
-#define CL_TARGET_OPENCL_VERSION 300
 #define N_BALLS 4096
 #define RADIUS 0.4f
 #define DIAMETER 0.8f
@@ -18,7 +17,7 @@ struct sim {
     vec3s x0[N_BALLS];
     vec3s v[N_BALLS];
     short nodes[N_BALLS];
-    short grid[GRID_LEN][GRID_LEN][GRID_LEN];
+    short grid[N_BALLS * 2];
     short tx, ty, tz;
     short px, py, pz;
     short nx, ny, nz;
