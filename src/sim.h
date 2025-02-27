@@ -15,8 +15,8 @@
 
 struct sim {
     vec4s x[N_BALLS];
-    vec4s x0[N_BALLS];
     vec4s v[N_BALLS];
+    vec4s x0[N_BALLS];
     short nodes[N_BALLS];
     short grid[GRID_LEN][GRID_LEN][GRID_LEN];
     short tx, ty, tz;

@@ -14,7 +14,8 @@ struct sim sim;
 static cl_context context;
 static cl_device_id device;
 static cl_program program;
-static cl_kernel kernel;
+static cl_kernel symplectic_euler_kernel;
+static cl_kernel resolve_pair_collisions_kernel;
 static cl_mem sim_mem;
 static cl_command_queue cmdq;
 
@@ -35,7 +36,7 @@ static void init_velocities(void) {
 }
 
 static void cl_notify(const char *err, const void *priv, size_t cb, void *user) {
-    fprintf(stderr, "cl: %s\n");
+    fprintf(stderr, "cl: %s\n", err);
 }
 
 static void cdie(const char *func) {
@@ -62,6 +63,36 @@ static char *read_text_file(const char *path) {
     close(fd);
     return buf;
 } 
+
+static cl_kernel create_kernel(const char *name) {
+    cl_int err;
+    cl_kernel kernel = clCreateKernel(program, name, &err);
+    if (err) {
+        die("clCreateKernel(%d)\n", err);
+    }
+    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &sim_mem);
+    if (err) {
+        die("clSetKernelArg(%d)\n", err);
+    }
+    return kernel;
+}
+
+static void copy_balls_to_gpu(void) {
+    cl_int err = clEnqueueWriteBuffer(
+        cmdq, /* command queue */
+        sim_mem, /* destination */
+        CL_TRUE, /* blocking */
+        0, /* offset of destination */
+        sizeof(sim.x) + sizeof(sim.v), /* size of copy */
+        &sim, /* source */
+        0, /* empty wait list */
+        NULL, 
+        NULL
+    );
+    if (err) {
+        die("clEnqueueWriteBuffer(%d)\n", err);
+    }
+}
 
 static void init_cl(void) {
     cl_int err;
@@ -100,31 +131,27 @@ static void init_cl(void) {
             log, 
             NULL
         );
-        fprintf(stderr, "cl: %s\n", log);
+        fprintf(stderr, "clGetProgramBuildInfo: %s\n", log);
         free(log);
         log = NULL;
     }
     if (err) {
         die("clBuildProgram(%d)\n", err);
     }
-    kernel = clCreateKernel(program, "resolve_pair_collisions", &err);
-    if (err) {
-        die("clCreateKernel(%d)\n", err);
-    }
     sim_mem = clCreateBuffer(context, 0, sizeof(sim), NULL, &err);
     if (err) {
         die("clCreateBuffer(%d)\n", err);
     }
-    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &sim_mem);
-    if (err) {
-        die("clSetKernelArg(%d)\n", err);
-    }
+    symplectic_euler_kernel = create_kernel("symplectic_euler");
+    resolve_pair_collisions_kernel = create_kernel("resolve_pair_collisions");
     cmdq = clCreateCommandQueueWithProperties(
         context, 
         device, 
         (cl_queue_properties[]) {
+        /*
             CL_QUEUE_PROPERTIES, 
             CL_QUEUE_PROFILING_ENABLE, 
+            */
             0
         }, 
         &err
@@ -132,13 +159,14 @@ static void init_cl(void) {
     if (err) {
         die("clCreateCommandQueue(%d)\n", err);
     }
+    copy_balls_to_gpu();
 }
 
 void init_sim(void) {
-    init_cl();
     create_workers();
     init_positions();
     init_velocities();
+    init_cl();
 }
 
 static float fclampf(float v, float l, float h) {
@@ -228,13 +256,16 @@ static void resolve_pair_collisions(int worker_idx) {
 static cl_ulong elapsed;
 
 static void copy_grid_to_gpu(void) {
-    cl_int err;
-    err = clEnqueueWriteBuffer(
+    cl_int err = clEnqueueWriteBuffer(
         cmdq, /* command queue */
         sim_mem, /* destination */
         CL_TRUE, /* blocking */
-        offsetof(struct sim, nodes), /* offset of destination */
+        0, 
+        sizeof(sim),
+#if 0
+        offsetof(struct sim, nodes), /* offset of source */
         sizeof(sim.nodes) + sizeof(sim.grid), /* size of copy */
+#endif
         &sim, /* source */
         0, /* empty wait list */
         NULL, 
@@ -245,33 +276,15 @@ static void copy_grid_to_gpu(void) {
     }
 }
 
-static void resolve_pair_collisions_gpu(void) {
+static void symplectic_euler_gpu(void) {
     cl_event ev;
     cl_int err;
-    static int first = 1;
-    size_t offset = first ? 0 : offsetof(struct sim, tx);
-    size_t size = sizeof(sim) - offset;
-    first = 0;
-    err = clEnqueueWriteBuffer(
-        cmdq, /* command queue */
-        sim_mem, /* destination */
-        CL_TRUE, /* blocking */
-        offset, /* offset of destination */
-        size, /* size of copy */
-        &sim, /* source */
-        0, /* empty wait list */
-        NULL, 
-        NULL
-    );
-    if (err) {
-        die("clEnqueueWriteBuffer(%d)\n", err);
-    }
     err = clEnqueueNDRangeKernel(
         cmdq, 
-        kernel, 
+        symplectic_euler_kernel, 
         1, 
         NULL, 
-        (size_t[]) {64}, 
+        (size_t[]) {GRID_LEN}, 
         NULL, 
         0, 
         NULL, 
@@ -284,6 +297,45 @@ static void resolve_pair_collisions_gpu(void) {
     if (err) {
         die("clWaitForEvents(%d)\n", err);
     }
+    clReleaseEvent(ev);
+}
+
+static void resolve_pair_collisions_gpu(void) {
+    cl_event ev;
+    cl_int err;
+    err = clEnqueueWriteBuffer(
+        cmdq, /* command queue */
+        sim_mem, /* destination */
+        CL_TRUE, /* blocking */
+        offsetof(struct sim, tx), /* offset of destination */
+        24, /* size of copy */
+        &sim, /* source */
+        0, /* empty wait list */
+        NULL, 
+        NULL
+    );
+    if (err) {
+        die("clEnqueueWriteBuffer(%d)\n", err);
+    }
+    err = clEnqueueNDRangeKernel(
+        cmdq, 
+        resolve_pair_collisions_kernel, 
+        1, 
+        NULL, 
+        (size_t[]) {GRID_LEN}, 
+        NULL, 
+        0, 
+        NULL, 
+        &ev
+    );
+    if (err) {
+        die("clEnqueueTask(%d)\n", err);
+    }
+    err = clWaitForEvents(1, &ev);
+    if (err) {
+        die("clWaitForEvents(%d)\n", err);
+    }
+#if 0
     cl_ulong start, end;
     err = clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_START, 8, &start, NULL);
     if (err) {
@@ -294,21 +346,8 @@ static void resolve_pair_collisions_gpu(void) {
         die("clGetEventProfilingInfo(%d)\n", err);
     }
     elapsed += end - start;
+#endif
     clReleaseEvent(ev);
-    err = clEnqueueReadBuffer(
-        cmdq, 
-        sim_mem, 
-        CL_TRUE, 
-        0, 
-        offsetof(struct sim, nodes), 
-        &sim, 
-        0, 
-        NULL, 
-        NULL
-    );
-    if (err) {
-        die("clEnqueueReadBuffer", err);
-    }
 }
 
 static void resolve_collisions(void) {
@@ -362,19 +401,36 @@ static void resolve_collisions(void) {
         }
         sim.pz = dz < 0;
         sim.nz = dz < 0;
-        //parallel_work(resolve_pair_collisions);
-        resolve_pair_collisions_gpu();
+        parallel_work(resolve_pair_collisions);
+        //resolve_pair_collisions_gpu();
+    }
+}
+
+static void copy_balls_to_cpu(void) {
+    cl_int err = clEnqueueReadBuffer(
+        cmdq, 
+        sim_mem, 
+        CL_TRUE, 
+        0, 
+        sizeof(sim.x) + sizeof(sim.v),
+        &sim, 
+        0, 
+        NULL, 
+        NULL
+    );
+    if (err) {
+        die("clEnqueueReadBuffer(%d)\n", err);
     }
 }
 
 void step_sim(void) {
     activate_workers();
-    parallel_work(symplectic_euler);
+    symplectic_euler_gpu();
+    //parallel_work(symplectic_euler);
+    copy_balls_to_cpu();
     init_grid();
     copy_grid_to_gpu();
     resolve_collisions();
+    copy_balls_to_gpu();
     deactivate_workers();
-    static int n;
-    if (++n == N_STEPS / 10)
-        printf("%ld\n", elapsed / 1000000);
 }

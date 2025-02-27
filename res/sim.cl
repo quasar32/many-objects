@@ -1,12 +1,16 @@
 #define N_BALLS 4096
 #define RADIUS 0.4f
 #define DIAMETER 0.8f
+#define SPS 600
+#define DT (1.0f / SPS)
 #define GRID_LEN 32
+#define GRID_MIN (RADIUS - GRID_LEN / 2)
+#define GRID_MAX (GRID_LEN / 2 - RADIUS)
 
 struct sim {
     float3 x[N_BALLS];
-    float3 x0[N_BALLS];
     float3 v[N_BALLS];
+    float3 x0[N_BALLS];
     short nodes[N_BALLS];
     short grid[GRID_LEN][GRID_LEN][GRID_LEN];
     short tx, ty, tz;
@@ -68,5 +72,21 @@ __kernel void resolve_pair_collisions(__global struct sim *sim) {
                 resolve_tile_tile_collisions(sim, i, j);
             }
         }
+    }
+}
+
+__kernel void symplectic_euler(__global struct sim *sim) {
+    int worker_idx = get_global_id(0);
+    int n_workers = get_global_size(0);
+    int i = worker_idx * N_BALLS / n_workers;
+    int n = (worker_idx + 1) * N_BALLS / n_workers;
+    for (; i < n; i++) {
+        sim->v[i].y -= 10.0f * DT;
+        float3 x0 = sim->x[i];
+        sim->x[i] += sim->v[i] * DT;
+        sim->x[i].x = clamp(sim->x[i].x, GRID_MIN, GRID_MAX);
+        sim->x[i].y = clamp(sim->x[i].y, GRID_MIN, GRID_MAX);
+        sim->x[i].z = clamp(sim->x[i].z, GRID_MIN, GRID_MAX);
+        sim->v[i] = (sim->x[i] - x0) * SPS;
     }
 }
