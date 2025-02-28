@@ -96,7 +96,7 @@ static void copy_balls_to_gpu(void) {
 
 static void init_cl(void) {
     cl_int err;
-    err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+    err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 1, &device, NULL);
     if (err) {
         die("clGetDeviceIDs(%d)\n", err);
     }
@@ -159,14 +159,14 @@ static void init_cl(void) {
     if (err) {
         die("clCreateCommandQueue(%d)\n", err);
     }
-    copy_balls_to_gpu();
 }
 
 void init_sim(void) {
     create_workers();
+    init_cl();
     init_positions();
     init_velocities();
-    init_cl();
+    copy_balls_to_gpu();
 }
 
 static float fclampf(float v, float l, float h) {
@@ -260,13 +260,9 @@ static void copy_grid_to_gpu(void) {
         cmdq, /* command queue */
         sim_mem, /* destination */
         CL_TRUE, /* blocking */
-        0, 
-        sizeof(sim),
-#if 0
         offsetof(struct sim, nodes), /* offset of source */
         sizeof(sim.nodes) + sizeof(sim.grid), /* size of copy */
-#endif
-        &sim, /* source */
+        &sim.nodes, /* source */
         0, /* empty wait list */
         NULL, 
         NULL
@@ -301,6 +297,7 @@ static void symplectic_euler_gpu(void) {
 }
 
 static void resolve_pair_collisions_gpu(void) {
+    //printf("CPU: %d %d %d\n", sim.nx, sim.ny, sim.nz);
     cl_event ev;
     cl_int err;
     err = clEnqueueWriteBuffer(
@@ -309,7 +306,7 @@ static void resolve_pair_collisions_gpu(void) {
         CL_TRUE, /* blocking */
         offsetof(struct sim, tx), /* offset of destination */
         24, /* size of copy */
-        &sim, /* source */
+        &sim.tx, /* source */
         0, /* empty wait list */
         NULL, 
         NULL
@@ -322,7 +319,7 @@ static void resolve_pair_collisions_gpu(void) {
         resolve_pair_collisions_kernel, 
         1, 
         NULL, 
-        (size_t[]) {GRID_LEN}, 
+        (size_t[]) {4}, 
         NULL, 
         0, 
         NULL, 
@@ -401,8 +398,8 @@ static void resolve_collisions(void) {
         }
         sim.pz = dz < 0;
         sim.nz = dz < 0;
-        parallel_work(resolve_pair_collisions);
-        //resolve_pair_collisions_gpu();
+        //parallel_work(resolve_pair_collisions);
+        resolve_pair_collisions_gpu();
     }
 }
 
@@ -412,7 +409,7 @@ static void copy_balls_to_cpu(void) {
         sim_mem, 
         CL_TRUE, 
         0, 
-        sizeof(sim.x) + sizeof(sim.v),
+        sizeof(sim.x),
         &sim, 
         0, 
         NULL, 
@@ -431,6 +428,6 @@ void step_sim(void) {
     init_grid();
     copy_grid_to_gpu();
     resolve_collisions();
-    copy_balls_to_gpu();
+    //copy_balls_to_gpu();
     deactivate_workers();
 }

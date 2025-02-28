@@ -21,7 +21,7 @@ struct sim {
 
 static void resolve_ball_ball_collision(__global struct sim *sim, int i, int j) {
     float3 normal = sim->x[i] - sim->x[j];
-    float d2 = length(normal);
+    float d2 = dot(normal, normal);
     if (d2 > 0.0f && d2 < DIAMETER * DIAMETER) {
         float d = sqrt(d2);
         normal = normal / d;
