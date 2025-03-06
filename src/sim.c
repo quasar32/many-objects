@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#define USE_CL
+
 struct sim sim;
 
 static cl_context context;
@@ -148,10 +150,10 @@ static void init_cl(void) {
         context, 
         device, 
         (cl_queue_properties[]) {
-        /*
+#ifdef USE_PROFILE
             CL_QUEUE_PROPERTIES, 
             CL_QUEUE_PROFILING_ENABLE, 
-            */
+#endif 
             0
         }, 
         &err
@@ -162,11 +164,14 @@ static void init_cl(void) {
 }
 
 void init_sim(void) {
-    create_workers();
-    init_cl();
     init_positions();
     init_velocities();
+#ifdef USE_CL
+    init_cl();
     copy_balls_to_gpu();
+#else
+    create_workers();
+#endif
 }
 
 static float fclampf(float v, float l, float h) {
@@ -280,7 +285,7 @@ static void symplectic_euler_gpu(void) {
         symplectic_euler_kernel, 
         1, 
         NULL, 
-        (size_t[]) {GRID_LEN}, 
+        (size_t[]) {N_BALLS}, 
         NULL, 
         0, 
         NULL, 
@@ -297,7 +302,6 @@ static void symplectic_euler_gpu(void) {
 }
 
 static void resolve_pair_collisions_gpu(void) {
-    //printf("CPU: %d %d %d\n", sim.nx, sim.ny, sim.nz);
     cl_event ev;
     cl_int err;
     err = clEnqueueWriteBuffer(
@@ -317,10 +321,10 @@ static void resolve_pair_collisions_gpu(void) {
     err = clEnqueueNDRangeKernel(
         cmdq, 
         resolve_pair_collisions_kernel, 
-        1, 
+        3, 
         NULL, 
-        (size_t[]) {4}, 
-        NULL, 
+        (size_t[]) {GRID_LEN, GRID_LEN, GRID_LEN}, 
+	(size_t[]) {8, 8, 8},
         0, 
         NULL, 
         &ev
@@ -332,7 +336,7 @@ static void resolve_pair_collisions_gpu(void) {
     if (err) {
         die("clWaitForEvents(%d)\n", err);
     }
-#if 0
+#ifdef USE_PROFILE 
     cl_ulong start, end;
     err = clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_START, 8, &start, NULL);
     if (err) {
@@ -398,8 +402,11 @@ static void resolve_collisions(void) {
         }
         sim.pz = dz < 0;
         sim.nz = dz < 0;
-        //parallel_work(resolve_pair_collisions);
+#ifdef USE_CL
         resolve_pair_collisions_gpu();
+#else
+        parallel_work(resolve_pair_collisions);
+#endif
     }
 }
 
@@ -421,13 +428,24 @@ static void copy_balls_to_cpu(void) {
 }
 
 void step_sim(void) {
-    activate_workers();
+#ifdef USE_CL 
     symplectic_euler_gpu();
-    //parallel_work(symplectic_euler);
     copy_balls_to_cpu();
     init_grid();
     copy_grid_to_gpu();
     resolve_collisions();
-    //copy_balls_to_gpu();
+    copy_balls_to_cpu();
+#else
+    activate_workers();
+    parallel_work(symplectic_euler);
+    init_grid();
+    resolve_collisions();
     deactivate_workers();
+#endif
+}
+
+void print_profile(void) {
+#ifdef USE_PROFILE
+    printf("kernel: %ld ms\n", elapsed / 1000000);
+#endif
 }

@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
     }
     long t1 = get_time();
     long dt = (t1 - t0) / 1000000; 
-    printf("%ld ms\n", dt); 
+    printf("cpu: %ld ms\n", dt); 
+    print_profile();
     return 0;
 }

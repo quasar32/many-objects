@@ -52,15 +52,23 @@ void resolve_tile_tile_collisions(__global struct sim *sim, int i0, int j0) {
 }
 
 __kernel void resolve_pair_collisions(__global struct sim *sim) {
-    int worker_idx = get_global_id(0);
-    int n_workers = get_global_size(0);
+    int i0 = get_global_id(0);
+    int n0 = get_global_size(0);
     int lx = (GRID_LEN - sim->px - sim->nx + sim->ix - 1) / sim->ix;
-    int xi = worker_idx * lx / n_workers * sim->ix + sim->px;
-    int xf = (worker_idx + 1) * lx / n_workers * sim->ix + sim->px;
-    int yi = sim->py;
-    int yf = GRID_LEN - sim->ny; 
-    int zi = sim->pz;
-    int zf = GRID_LEN - sim->nz;
+    int xi = i0 * lx / n0 * sim->ix + sim->px;
+    int xf = (i0 + 1) * lx / n0 * sim->ix + sim->px;
+    //int yi = sim->py;
+    //int yf = GRID_LEN - sim->ny; 
+    int i1 = get_global_id(1);
+    int n1  = get_global_size(1);
+    int ly = (GRID_LEN - sim->py - sim->ny + sim->iy - 1) / sim->iy;
+    int yi = i1 * ly / n1 * sim->iy + sim->py;
+    int yf = (i1 + 1) * ly / n1 * sim->iy + sim->py;
+    int i2 = get_global_id(2);
+    int n2 = get_global_size(2);
+    int lz = (GRID_LEN - sim->pz - sim->nz + sim->iz - 1) / sim->iz;
+    int zi = i2 * lz / n1 * sim->iz + sim->pz;
+    int zf = (i2 + 1) * lz / n2 * sim->iz + sim->pz;
     int ix = sim->ix;
     int iy = sim->iy;
     int iz = sim->iz;
