@@ -1,14 +1,14 @@
-BENCH_OBJ=obj/bench.o obj/misc.o obj/sim.o obj/worker.o
-BENCH_CL_OBJ=obj/bench.o obj/misc.o obj/sim-cl.o obj/worker.o
-VIDEO_OBJ=obj/draw.o obj/gl.o obj/misc.o obj/sim.o obj/vid.o obj/worker.o
-WINDOW_OBJ=obj/draw.o obj/gl.o obj/misc.o obj/sim.o obj/wnd.o obj/worker.o
+BENCH_CPU_OBJ=obj/bench.o obj/misc.o obj/sim-cpu.o obj/sim.o obj/worker.o
+BENCH_GPU_OBJ=obj/bench.o obj/misc.o obj/sim-gpu.o obj/sim.o
+VIDEO_OBJ=obj/draw.o obj/gl.o obj/misc.o obj/sim-cpu.o obj/sim.o obj/vid.o obj/worker.o
+WINDOW_OBJ=obj/draw.o obj/gl.o obj/misc.o obj/sim-cpu.o obj/sim.o obj/wnd.o obj/worker.o
 CFLAGS=-Idep/cglm/include -Idep/glad/include -DCGLM_OMIT_NS_FROM_STRUCT_API
 
-bin/bench: bin obj $(BENCH_OBJ) 
-	gcc $(BENCH_OBJ) -o $@ -lm -lOpenCL
+bin/bench-cpu: bin obj $(BENCH_CPU_OBJ) 
+	gcc $(BENCH_CPU_OBJ) -o $@ -lm -lOpenCL
 
-bin/bench-cl: bin obj $(BENCH_CL_OBJ) 
-	gcc $(BENCH_OBJ) -o $@ -lm -lOpenCL
+bin/bench-gpu: bin obj $(BENCH_GPU_OBJ) 
+	gcc $(BENCH_GPU_OBJ) -o $@ -lm -lOpenCL
 
 bin/video: bin obj $(VIDEO_OBJ) 
 	gcc $(VIDEO_OBJ) -o $@ -lSDL2main -lSDL2 -lm -lswscale \
@@ -29,11 +29,14 @@ obj/draw.o: src/draw.c src/draw.h src/sim.h
 obj/gl.o: dep/glad/src/gl.c 
 	gcc $< -o $@ $(CFLAGS) -c
 
-obj/sim.o: src/sim.c src/sim.h src/worker.h
+obj/sim-cpu.o: src/sim-cpu.c src/sim.h src/worker.h
 	gcc $< -o $@ $(CFLAGS) -c -O3
 
-obj/sim-cl.o: src/sim.c src/sim.h src/worker.h
-	gcc $< -o $@ $(CFLAGS) -c -O3 -D USE_CL
+obj/sim-gpu.o: src/sim-gpu.c src/sim.h src/worker.h
+	gcc $< -o $@ $(CFLAGS) -c -O3
+
+obj/sim.o: src/sim.c src/sim.h src/worker.h
+	gcc $< -o $@ $(CFLAGS) -c -O3
 
 obj/vid.o: src/vid.c src/draw.h src/misc.h src/sim.h
 	gcc $< -o $@ $(CFLAGS) -c
