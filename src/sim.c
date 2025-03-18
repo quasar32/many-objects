@@ -9,8 +9,6 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#define USE_CL
-
 struct sim sim;
 
 static cl_context context;
@@ -37,6 +35,7 @@ static void init_velocities(void) {
     }
 }
 
+#ifdef USE_CL
 static void cl_notify(const char *err, const void *priv, size_t cb, void *user) {
     fprintf(stderr, "cl: %s\n", err);
 }
@@ -162,6 +161,7 @@ static void init_cl(void) {
         die("clCreateCommandQueue(%d)\n", err);
     }
 }
+#endif
 
 void init_sim(void) {
     init_positions();
@@ -258,6 +258,7 @@ static void resolve_pair_collisions(int worker_idx) {
     }
 }
 
+#ifdef USE_CL
 static cl_ulong elapsed;
 
 static void copy_grid_to_gpu(void) {
@@ -350,6 +351,7 @@ static void resolve_pair_collisions_gpu(void) {
 #endif
     clReleaseEvent(ev);
 }
+#endif
 
 static void resolve_collisions(void) {
     for (int i = 0; i < 27; i++) {
