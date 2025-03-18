@@ -34,7 +34,6 @@ void init_grid(void) {
     }
 }
 
-
 void resolve_collisions(void) {
     for (int i = 0; i < 27; i++) {
         int dx = i % 3 - 1;
