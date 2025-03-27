@@ -7,10 +7,20 @@ Optimized simulation of many spheres on CPU.
 Use `make` with the name of the program you wish to create.
 If no name is provided will create `bin/bench`.
 
-## `bin/bench`
+## `bin/bench-mt`
 
-`bin/bench` outputs the time it takes to simulate 30 
-seconds of simulation.
+`bin/bench-mt` outputs the time it takes to simulate 30 
+seconds of a multi-threaded simulation.
+
+## `bin/bench-st`
+
+`bin/bench-st` outputs the time it takes to simulate 30 
+seconds of single-threaded simulation. 
+
+## `bin/bench-cl`
+
+`bin/bench-cl` outputs the time it takes to simulate 30 
+seconds of OpenCL simulation. 
 
 ## `bin/video`
 
