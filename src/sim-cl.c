@@ -166,7 +166,7 @@ static void init_cl(void) {
     }
 }
 
-void init_sim(void) {
+void init_sim(int argc, char **argv) {
     init_positions();
     init_velocities();
     init_cl();

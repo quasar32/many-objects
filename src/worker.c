@@ -4,12 +4,14 @@
 #include "worker.h"
 #include "misc.h"
 
-#define ALL_WORKERS ((1u << N_WORKERS) - 1u)
+int n_workers = 4;
+
+#define ALL_WORKERS ((1u << n_workers) - 1u)
 
 static pthread_mutex_t active_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t active_cond = PTHREAD_COND_INITIALIZER;
-static pthread_t workers[N_WORKERS - 1];
-static unsigned workers_started = ALL_WORKERS;
+static pthread_t *workers;
+static unsigned workers_started;
 static unsigned workers_done;
 static void(*current_work)(int);
 static int workers_active;
@@ -44,7 +46,9 @@ static void *worker_func(void *arg) {
 }
 
 void create_workers(void) {
-    for (uintptr_t i = 1; i < N_WORKERS; i++) {
+    workers = xmalloc(n_workers * sizeof(*workers));
+    workers_started = ALL_WORKERS;
+    for (uintptr_t i = 1; i < n_workers; i++) {
         pthread_t *worker = &workers[i - 1];
         int err = pthread_create(worker, NULL, worker_func, (void *) i);
         if (err) {

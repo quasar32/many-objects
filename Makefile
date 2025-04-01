@@ -1,4 +1,4 @@
-BENCH_ST_OBJ=obj/bench.o obj/misc.o obj/sim-st.o obj/sim.o obj/worker.o
+BENCH_ST_OBJ=obj/bench.o obj/misc.o obj/sim-st.o obj/sim.o
 BENCH_MT_OBJ=obj/bench.o obj/misc.o obj/sim-mt.o obj/sim.o obj/worker.o
 BENCH_CL_OBJ=obj/bench.o obj/misc.o obj/sim-cl.o obj/sim.o
 VIDEO_OBJ=obj/draw.o obj/gl.o obj/misc.o obj/sim-mt.o obj/sim.o obj/vid.o obj/worker.o

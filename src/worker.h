@@ -1,6 +1,6 @@
 #pragma once
 
-#define N_WORKERS 4
+extern int n_workers;
 
 void create_workers(void);
 void parallel_work(void(*work)(int));

@@ -43,9 +43,9 @@ static void step_eye(void) {
     }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     init_draw();
-    init_sim();
+    init_sim(argc, argv);
     Uint64 freq = SDL_GetPerformanceFrequency();
     Uint64 frame = freq / SPS;
     Uint64 t0 = SDL_GetPerformanceCounter();

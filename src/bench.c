@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "sim.h"
+#include "worker.h"
 
 #define IS_LONG(v) _Generic((v), long: 1, default: 0)
 
@@ -17,7 +18,7 @@ static long get_time(void) {
 }
 
 int main(int argc, char **argv) {
-    init_sim();
+    init_sim(argc, argv);
     long t0 = get_time();
     for (int t = 0; t < N_STEPS; t++) {
         step_sim();

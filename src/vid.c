@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
     width = WIDTH;
     height = HEIGHT;
     init_draw();
-    init_sim();
+    init_sim(argc, argv);
     create_video(path);
     return 0;
 }

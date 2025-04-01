@@ -8,9 +8,12 @@ void init_velocities(void);
 void init_grid(void);
 void resolve_collisions(void);
 
-void init_sim(void) {
+void init_sim(int argc, char **argv) {
     init_positions();
     init_velocities();
+    if (argc >= 2) {
+        n_workers = atoi(argv[1]);
+    }
     create_workers();
 }
 
@@ -19,8 +22,8 @@ static float fclampf(float v, float l, float h) {
 }
 
 static void symplectic_euler_worker(int worker_idx) {
-    int i = worker_idx * N_BALLS / N_WORKERS;
-    int n = (worker_idx + 1) * N_BALLS / N_WORKERS;
+    int i = worker_idx * N_BALLS / n_workers;
+    int n = (worker_idx + 1) * N_BALLS / n_workers;
     for (; i < n; i++) {
         sim.v[i].y -= 10.0f * DT;
         sim.x0[i] = sim.x[i];
@@ -71,8 +74,8 @@ static void resolve_tile_tile_collisions(int i0, int j0) {
 
 static void resolve_pair_collisions_worker(int worker_idx) {
     int lx = (GRID_LEN - sim.px - sim.nx + sim.ix - 1) / sim.ix;
-    int xi = worker_idx * lx / N_WORKERS * sim.ix + sim.px;
-    int xf = (worker_idx + 1) * lx / N_WORKERS * sim.ix + sim.px;
+    int xi = worker_idx * lx / n_workers * sim.ix + sim.px;
+    int xf = (worker_idx + 1) * lx / n_workers * sim.ix + sim.px;
     int yi = sim.py;
     int yf = GRID_LEN - sim.ny; 
     int zi = sim.pz;

@@ -27,6 +27,6 @@ struct sim {
 
 extern struct sim sim;
 
-void init_sim(void);
+void init_sim(int argc, char **argv);
 void step_sim(void);
 void print_profile(void);

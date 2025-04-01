@@ -7,7 +7,7 @@ void init_positions(void);
 void init_velocities(void);
 void init_grid(void);
 
-void init_sim(void) {
+void init_sim(int argc, char **argv) {
     init_positions();
     init_velocities();
 }
@@ -79,11 +79,9 @@ static void resolve_collisions(void) {
 }
 
 void step_sim(void) {
-    activate_workers();
     symplectic_euler();
     init_grid();
     resolve_collisions();
-    deactivate_workers();
 }
 
 void print_profile(void) {}
