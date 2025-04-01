@@ -31,6 +31,13 @@ static void symplectic_euler_worker(int worker_idx) {
         sim.x[i].x = fclampf(sim.x[i].x, GRID_MIN, GRID_MAX);
         sim.x[i].y = fclampf(sim.x[i].y, GRID_MIN, GRID_MAX);
         sim.x[i].z = fclampf(sim.x[i].z, GRID_MIN, GRID_MAX);
+    }
+}
+
+static void newton_rasphon_worker(int worker_idx) {
+    int i = worker_idx * N_BALLS / n_workers;
+    int n = (worker_idx + 1) * N_BALLS / n_workers;
+    for (; i < n; i++) {
         sim.v[i] = vec4_sub(sim.x[i], sim.x0[i]);
         sim.v[i] = vec4_scale(sim.v[i], SPS);
     }
@@ -38,6 +45,10 @@ static void symplectic_euler_worker(int worker_idx) {
 
 static void symplectic_euler(void) {
     parallel_work(symplectic_euler_worker);
+}
+
+static void newton_rasphon(void) {
+    parallel_work(newton_rasphon_worker);
 }
 
 static void resolve_ball_ball_collision(int i, int j) {
@@ -50,11 +61,6 @@ static void resolve_ball_ball_collision(int i, int j) {
         vec4s dx = vec4_scale(normal, corr);
         sim.x[i] = vec4_add(sim.x[i], dx);
         sim.x[j] = vec4_sub(sim.x[j], dx);
-        float vi = vec4_dot(sim.v[i], normal);
-        float vj = vec4_dot(sim.v[j], normal);
-        vec4s dv = vec4_scale(normal, vi - vj);
-        sim.v[i] = vec4_sub(sim.v[i], dv);
-        sim.v[j] = vec4_add(sim.v[j], dv);
     }
 }
 
@@ -103,6 +109,7 @@ void step_sim(void) {
     symplectic_euler();
     init_grid();
     resolve_collisions();
+    newton_rasphon();
     deactivate_workers();
 }
 
