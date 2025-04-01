@@ -17,6 +17,12 @@ seconds of a multi-threaded simulation.
 `bin/bench-st` outputs the time it takes to simulate 30 
 seconds of single-threaded simulation. 
 
+## `bin/bench-nh`
+
+`bin/bench-nh` outputs the time it takes to simulate 30 
+seconds of a single-threaded simulation without
+spatial gridding.
+
 ## `bin/bench-cl`
 
 `bin/bench-cl` outputs the time it takes to simulate 30 
