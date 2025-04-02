@@ -55,6 +55,29 @@ static inline int max(int a, int b) {
     return a > b ? a : b;
 }
 
+static void resolve_collisions(void) {
+    for (int i = 0; i < N_BALLS; i++) {
+        int x = sim.x[i].x + GRID_LEN / 2;
+        int y = sim.x[i].y + GRID_LEN / 2;
+        int z = sim.x[i].z + GRID_LEN / 2;
+        int x0 = max(x - 1, 0);
+        int y0 = max(y - 1, 0);
+        int z0 = max(z - 1, 0);
+        int x1 = min(x + 2, GRID_LEN);
+        int y1 = min(y + 2, GRID_LEN);
+        int z1 = min(z + 2, GRID_LEN);
+        for (x = x0; x < x1; x++) {
+            for (y = y0; y < y1; y++) {
+                for (z = z0; z < z1; z++) {
+                    for (int j = sim.grid[x][y][z]; j >= 0; j = sim.nodes[j]) {
+                        resolve_ball_ball_collision(i, j);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void step_sim(void) {
     symplectic_euler();
     newton_rasphon();
