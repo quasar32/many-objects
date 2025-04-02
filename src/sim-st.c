@@ -80,9 +80,9 @@ static void resolve_collisions(void) {
 
 void step_sim(void) {
     symplectic_euler();
-    newton_rasphon();
     init_grid();
     resolve_collisions();
+    newton_rasphon();
 }
 
 void print_profile(void) {}
